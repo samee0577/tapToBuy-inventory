@@ -44,6 +44,8 @@ const sessionSchema = z.object({
   ARGON2_MEMORY_COST: z.coerce.number().int().min(8_192).max(1_048_576).default(19_456),
   ARGON2_TIME_COST: z.coerce.number().int().min(1).max(10).default(2),
   ARGON2_PARALLELISM: z.coerce.number().int().min(1).max(16).default(1),
+  AUTH_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1_000).max(3_600_000).default(900_000),
+  AUTH_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(100).default(10),
 });
 
 const googleSchema = z.object({

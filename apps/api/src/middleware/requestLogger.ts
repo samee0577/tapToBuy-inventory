@@ -35,7 +35,7 @@ export function requestLogger(req: Request, res: Response, next: NextFunction): 
     if (SILENT_PATHS.has(req.path)) return;
 
     const route = normaliseRoute(req.baseUrl, req.route?.path);
-    const actor = res.locals.user as { id?: string } | undefined;
+    const actor = req.auth;
 
     const context = {
       requestId: res.locals.requestId as string | undefined,

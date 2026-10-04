@@ -1,7 +1,6 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 
 import { databaseEnv, env, isProduction, isTest } from '../config/env.js';
-import { logger } from './logger.js';
 
 /**
  * Vercel gives each serverless invocation a fresh module scope, so the client is
@@ -49,8 +48,3 @@ export function toDecimal(value: string): Prisma.Decimal {
 }
 
 export type { PrismaClient };
-
-/** Logs Prisma's structured error detail without leaking the connection string. */
-export function logPrismaFailure(operation: string, error: unknown): void {
-  logger.error({ operation, err: error }, 'database operation failed');
-}
