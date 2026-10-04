@@ -1,0 +1,141 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * A business app used on a phone, under shop lighting, often one-handed.
+ * The base type scale is nudged up from the shadcn default because 14px body
+ * text is genuinely hard to read on a 5-inch screen at arm's length.
+ */
+@theme {
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'Noto Sans', sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+
+  --text-base: 1rem;
+  --text-base--line-height: 1.5rem;
+}
+
+:root {
+  --radius: 0.625rem;
+
+  --background: oklch(0.985 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.505 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+  --success: oklch(0.596 0.145 154.5);
+  --success-foreground: oklch(0.985 0 0);
+  --warning: oklch(0.666 0.161 58.5);
+  --warning-foreground: oklch(0.145 0 0);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.505 0 0);
+
+  /*
+   * Stock status (§17) and profit direction are domain concepts, not decoration.
+   * They are tokens so a screen never hard-codes a colour, and so the same
+   * green/amber/red always means in-stock/low/out anywhere in the app.
+   */
+  --stock-in-stock: oklch(0.545 0.135 152.5);
+  --stock-low-stock: oklch(0.638 0.155 61.5);
+  --stock-out-of-stock: oklch(0.553 0.213 26.5);
+  --profit-positive: oklch(0.545 0.135 152.5);
+  --profit-negative: oklch(0.553 0.213 26.5);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-stock-in-stock: var(--stock-in-stock);
+  --color-stock-low-stock: var(--stock-low-stock);
+  --color-stock-out-of-stock: var(--stock-out-of-stock);
+  --color-profit-positive: var(--profit-positive);
+  --color-profit-negative: var(--profit-negative);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+    /* Stops iOS Safari zooming the viewport when a numeric field gains focus. */
+    text-size-adjust: 100%;
+  }
+
+  /*
+   * Money and stock counts are scanned in columns, so they use lining tabular
+   * figures; proportional digits make a list of prices look ragged.
+   */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
+  }
+}
+
+@layer utilities {
+  /* Bottom navigation must clear the iOS home indicator. */
+  .pb-safe {
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  }
+
+  .pt-safe {
+    padding-top: max(0.5rem, env(safe-area-inset-top));
+  }
+
+  .mb-safe {
+    margin-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  }
+
+  /* Prevents the whole page rubber-banding behind a fixed bottom nav on iOS. */
+  .overscroll-contain-y {
+    overscroll-behavior-y: contain;
+  }
+}

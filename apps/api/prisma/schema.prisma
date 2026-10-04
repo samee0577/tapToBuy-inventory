@@ -1,0 +1,183 @@
+// Inventory Management System — Prisma schema
+//
+// Design notes that are not obvious from the field list:
+//
+//  * Every primary key is a UUID so that an id leaked in a URL reveals nothing
+//    about row counts, and so ids can be minted client-side if ever needed.
+//  * Money is Decimal(12,2). Never Float — a float rupee amount drifts.
+//  * stockQuantity is denormalised onto the variant for fast reads, but it is
+//    never written directly: it only ever changes inside the same transaction
+//    that appends an InventoryMovement row.
+//  * onDelete: Restrict on history tables means Postgres itself refuses to
+//    orphan a ledger entry, even if application code is wrong.
+//  * Additional CHECK constraints and immutability triggers live in
+//    migrations/, because Prisma cannot express them in the schema.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  STAFF
+}
+
+enum MovementType {
+  STOCK_IN
+  SALE
+  RETURN
+  ADJUSTMENT
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String   @db.VarChar(80)
+  email        String   @unique @db.VarChar(254)
+  passwordHash String?  @map("password_hash") @db.VarChar(255)
+  googleId     String?  @unique @map("google_id") @db.VarChar(255)
+  role         UserRole @default(STAFF)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  createdProducts Product[]           @relation("ProductCreatedBy")
+  movements       InventoryMovement[]
+  priceChanges    PriceHistory[]
+
+  @@index([role, isActive])
+  @@map("users")
+}
+
+model Category {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique @db.VarChar(60)
+  description String?  @db.VarChar(280)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  products Product[]
+
+  @@index([isActive, name])
+  @@map("categories")
+}
+
+model Product {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(120)
+  /// Uppercased by the API on write so uniqueness needs only a plain index.
+  productCode String   @unique @map("product_code") @db.VarChar(40)
+  categoryId  String   @map("category_id") @db.Uuid
+  /// Restrict: a category holding products must be deactivated, not deleted.
+  category    Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  /// R2 object key. The image binary itself never enters Postgres.
+  imageKey    String?  @map("image_key") @db.VarChar(200)
+  imageUrl    String?  @map("image_url") @db.VarChar(500)
+  description String?  @db.VarChar(500)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdById String?  @map("created_by_id") @db.Uuid
+  createdBy   User?    @relation("ProductCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  variants ProductVariant[]
+
+  @@index([categoryId, isActive])
+  @@index([isActive, updatedAt(sort: Desc)])
+  @@index([isActive, createdAt(sort: Desc)])
+  @@map("products")
+}
+
+model ProductVariant {
+  id            String   @id @default(uuid()) @db.Uuid
+  productId     String   @map("product_id") @db.Uuid
+  product       Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  size          String   @db.VarChar(20)
+  color         String   @db.VarChar(40)
+  buyingPrice   Decimal  @default(0) @map("buying_price") @db.Decimal(12, 2)
+  sellingPrice  Decimal  @default(0) @map("selling_price") @db.Decimal(12, 2)
+  /// Denormalised for fast reads. Only mutated via the inventory engine.
+  stockQuantity Int      @default(0) @map("stock_quantity")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  movements    InventoryMovement[]
+  priceHistory PriceHistory[]
+
+  // Business invariant 2: product + size + colour is unique.
+  @@unique([productId, size, color], map: "product_variant_identity_key")
+  @@index([productId])
+  // Supports the server-side size and colour filter dropdowns (§ C6).
+  @@index([size])
+  @@index([color])
+  // Drives the dashboard counters and the low-stock query without a scan.
+  @@index([isActive, stockQuantity], map: "product_variant_active_stock_idx")
+  @@map("product_variants")
+}
+
+/// Immutable audit ledger. There is no update or delete path, and a Postgres
+/// trigger (see migrations) rejects UPDATE and DELETE outright.
+model InventoryMovement {
+  id        String         @id @default(uuid()) @db.Uuid
+  variantId String         @map("variant_id") @db.Uuid
+  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  type      MovementType
+
+  /// Always a positive magnitude (§16 Rule 2). Direction is recoverable from
+  /// previousStock -> newStock, which the trigger verifies.
+  quantity Int @db.Integer
+
+  previousStock Int @map("previous_stock") @db.Integer
+  newStock      Int @map("new_stock") @db.Integer
+
+  /// Frozen at the moment of the movement so that historical profit stays
+  /// correct even after the variant's prices are changed (invariant 8).
+  buyingPriceSnapshot  Decimal? @map("buying_price_snapshot") @db.Decimal(12, 2)
+  sellingPriceSnapshot Decimal? @map("selling_price_snapshot") @db.Decimal(12, 2)
+  unitProfit           Decimal? @map("unit_profit") @db.Decimal(12, 2)
+
+  reason String? @db.VarChar(200)
+  note   String? @db.VarChar(280)
+
+  performedById String @map("performed_by_id") @db.Uuid
+  performedBy   User   @relation(fields: [performedById], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  // The two dominant access patterns: one variant's timeline, and the global
+  // reverse-chronological feed.
+  @@index([variantId, createdAt(sort: Desc)], map: "movement_variant_created_idx")
+  @@index([createdAt(sort: Desc)])
+  @@index([performedById, createdAt(sort: Desc)])
+  @@index([type, createdAt(sort: Desc)])
+  @@map("inventory_movements")
+}
+
+/// Append-only record of every price change. `null` old price means the variant
+/// was created rather than repriced.
+model PriceHistory {
+  id        String         @id @default(uuid()) @db.Uuid
+  variantId String         @map("variant_id") @db.Uuid
+  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+
+  oldBuyingPrice  Decimal? @map("old_buying_price") @db.Decimal(12, 2)
+  newBuyingPrice  Decimal  @map("new_buying_price") @db.Decimal(12, 2)
+  oldSellingPrice Decimal? @map("old_selling_price") @db.Decimal(12, 2)
+  newSellingPrice Decimal  @map("new_selling_price") @db.Decimal(12, 2)
+
+  changedById String @map("changed_by_id") @db.Uuid
+  changedBy   User   @relation(fields: [changedById], references: [id], onDelete: Restrict)
+
+  changedAt DateTime @default(now()) @map("changed_at") @db.Timestamptz(3)
+
+  @@index([variantId, changedAt(sort: Desc)], map: "price_history_variant_changed_idx")
+  @@index([changedById])
+  @@map("price_history")
+}
