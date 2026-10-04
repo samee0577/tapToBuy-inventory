@@ -16,11 +16,25 @@ const csv = z
       .filter((entry) => entry.length > 0),
   );
 
+/** Comma-separated list of allowed image formats, e.g. "jpg,jpeg,png,webp". */
+const formatList = z
+  .string()
+  .default('jpg,jpeg,png,webp')
+  .transform((value) =>
+    value
+      .split(',')
+      .map((entry) => entry.trim().toLowerCase())
+      .filter((entry) => entry.length > 0),
+  )
+  .refine((entries) => entries.length > 0, {
+    message: 'CLOUDINARY_ALLOWED_FORMATS must list at least one format',
+  });
+
 /**
  * Only the settings required to boot are parsed eagerly. Feature-specific
- * credentials are validated lazily on first use, so a misconfigured R2 bucket
- * produces one actionable error at upload time instead of a crash loop that
- * takes the whole API offline.
+ * credentials are validated lazily on first use, so a misconfigured Cloudinary
+ * account produces one actionable error at upload time instead of a crash loop
+ * that takes the whole API offline.
  */
 const baseSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -53,20 +67,29 @@ const googleSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().min(1, 'GOOGLE_CLIENT_SECRET is required'),
 });
 
-const r2Schema = z.object({
-  R2_ACCOUNT_ID: z.string().min(1, 'R2_ACCOUNT_ID is required'),
-  R2_ACCESS_KEY_ID: z.string().min(1, 'R2_ACCESS_KEY_ID is required'),
-  R2_SECRET_ACCESS_KEY: z.string().min(1, 'R2_SECRET_ACCESS_KEY is required'),
-  R2_BUCKET_NAME: z.string().min(1, 'R2_BUCKET_NAME is required'),
-  R2_PUBLIC_URL: z.string().url('R2_PUBLIC_URL must be an absolute URL'),
-  R2_UPLOAD_MAX_BYTES: z.coerce.number().int().min(1_024).max(26_214_400).default(5_242_880),
-  R2_UPLOAD_URL_TTL_SECONDS: z.coerce.number().int().min(60).max(900).default(300),
+/**
+ * Cloudinary credentials.
+ *
+ * CLOUDINARY_API_SECRET is what makes a signed upload trustworthy: the browser is
+ * handed a signature over a fixed parameter set and nothing else, so it cannot add
+ * parameters of its own. The secret never leaves the server, which is why the
+ * upload can be validated without proxying the file through Express.
+ */
+const cloudinarySchema = z.object({
+  CLOUDINARY_CLOUD_NAME: z.string().min(1, 'CLOUDINARY_CLOUD_NAME is required').max(64),
+  CLOUDINARY_API_KEY: z.string().min(8, 'CLOUDINARY_API_KEY looks too short').max(64),
+  CLOUDINARY_API_SECRET: z.string().min(16, 'CLOUDINARY_API_SECRET looks too short').max(128),
+  CLOUDINARY_UPLOAD_FOLDER: z.string().min(1).max(64).default('products'),
+  CLOUDINARY_MAX_UPLOAD_BYTES: z.coerce.number().int().min(1_024).max(26_214_400).default(5_242_880),
+  CLOUDINARY_MIN_DIMENSION: z.coerce.number().int().min(1).max(10_000).default(400),
+  CLOUDINARY_MAX_DIMENSION: z.coerce.number().int().min(100).max(20_000).default(6_000),
+  CLOUDINARY_ALLOWED_FORMATS: formatList,
 });
 
 export type BaseEnv = z.infer<typeof baseSchema>;
 export type SessionEnv = z.infer<typeof sessionSchema>;
 export type GoogleEnv = z.infer<typeof googleSchema>;
-export type R2Env = z.infer<typeof r2Schema>;
+export type CloudinaryEnv = z.infer<typeof cloudinarySchema>;
 export type DatabaseEnv = z.infer<typeof databaseSchema>;
 
 function formatIssues(error: z.ZodError): string {
@@ -130,5 +153,5 @@ export const trustProxy = env.TRUST_PROXY ? 1 : false;
 
 export const sessionEnv = lazyFeature('session', sessionSchema);
 export const googleEnv = lazyFeature('google', googleSchema);
-export const r2Env = lazyFeature('r2', r2Schema);
+export const cloudinaryEnv = lazyFeature('cloudinary', cloudinarySchema);
 export const databaseEnv = lazyFeature('database', databaseSchema);

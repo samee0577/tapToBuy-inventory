@@ -6,6 +6,7 @@ import { SESSION_COOKIE_NAME, clearSessionCookie } from '../config/session.js';
 import { AppError, forbidden, unauthorized } from '../lib/errors.js';
 import { prisma } from '../lib/prisma.js';
 import { verifySessionToken } from '../lib/session-token.js';
+import { REQUEST_AUTH_SELECT } from '../serializers/user.js';
 import { logger } from '../lib/logger.js';
 
 /**
@@ -43,7 +44,7 @@ export const requireAuth: RequestHandler = async (req, res, next) => {
 
     const user = await prisma.user.findUnique({
       where: { id: claims.userId },
-      select: { id: true, name: true, email: true, role: true, isActive: true },
+      select: REQUEST_AUTH_SELECT,
     });
 
     if (!user) {

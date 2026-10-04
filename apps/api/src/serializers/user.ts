@@ -7,6 +7,7 @@ export interface UserAuthRecord {
   email: string;
   role: SessionUserDto['role'];
   isActive: boolean;
+  mustChangePassword: boolean;
   passwordHash: string | null;
   googleId: string | null;
   createdAt: Date;
@@ -19,14 +20,34 @@ export const AUTH_SELECT = {
   email: true,
   role: true,
   isActive: true,
+  mustChangePassword: true,
   passwordHash: true,
   googleId: true,
   createdAt: true,
   updatedAt: true,
 } as const;
 
+/**
+ * Narrow projection used by requireAuth. Authorisation needs identity and role,
+ * not credential material, so the password hash is not even fetched there.
+ */
+export const REQUEST_AUTH_SELECT = {
+  id: true,
+  name: true,
+  email: true,
+  role: true,
+  isActive: true,
+  mustChangePassword: true,
+} as const;
+
 export function toSessionUser(user: UserAuthRecord): SessionUserDto {
-  return { id: user.id, name: user.name, email: user.email, role: user.role };
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    mustChangePassword: user.mustChangePassword,
+  };
 }
 
 /**
@@ -41,6 +62,7 @@ export function toUserDto(user: UserAuthRecord): UserDto {
     email: user.email,
     role: user.role,
     isActive: user.isActive,
+    mustChangePassword: user.mustChangePassword,
     hasPassword: user.passwordHash !== null,
     hasGoogleAccount: user.googleId !== null,
     createdAt: user.createdAt.toISOString(),

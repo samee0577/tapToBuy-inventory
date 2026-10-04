@@ -43,6 +43,10 @@ model User {
   googleId     String?  @unique @map("google_id") @db.VarChar(255)
   role         UserRole @default(STAFF)
   isActive     Boolean  @default(true) @map("is_active")
+  /// Set when an administrator issues a temporary password. The user is nagged to
+  /// replace it from the profile screen rather than being blocked outright, so a
+  /// forgotten password never leaves someone locked out of recording stock.
+  mustChangePassword Boolean @default(false) @map("must_change_password")
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -76,7 +80,8 @@ model Product {
   categoryId  String   @map("category_id") @db.Uuid
   /// Restrict: a category holding products must be deactivated, not deleted.
   category    Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  /// R2 object key. The image binary itself never enters Postgres.
+  /// Storage object identifier (a Cloudinary public_id). The image binary itself
+  /// never enters Postgres.
   imageKey    String?  @map("image_key") @db.VarChar(200)
   imageUrl    String?  @map("image_url") @db.VarChar(500)
   description String?  @db.VarChar(500)

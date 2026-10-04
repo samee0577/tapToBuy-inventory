@@ -55,7 +55,7 @@ export function createApp(): Express {
               'default-src': ["'self'"],
               'script-src': ["'self'"],
               'style-src': ["'self'", "'unsafe-inline'"],
-              'img-src': ["'self'", 'data:', 'blob:', 'https:'],
+              'img-src': ["'self'", 'data:', 'blob:', 'https://res.cloudinary.com'],
               'connect-src': ["'self'"],
               'frame-ancestors': ["'none'"],
               'object-src': ["'none'"],
@@ -65,7 +65,8 @@ export function createApp(): Express {
           }
         : false,
       crossOriginEmbedderPolicy: false,
-      // Permits the SPA to load R2 images without a cross-origin resource block.
+      // Product photos are served from Cloudinary, so the SPA must be permitted to
+      // load them cross-origin.
       crossOriginResourcePolicy: { policy: 'cross-origin' },
     }),
   );

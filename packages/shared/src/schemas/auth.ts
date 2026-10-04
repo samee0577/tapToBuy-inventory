@@ -9,7 +9,6 @@ export const emailSchema = z
   .min(5, 'Email is required')
   .max(254, 'Email is too long')
   .email('Enter a valid email address');
-
 export const passwordSchema = z
   .string()
   .min(10, 'Password must be at least 10 characters')

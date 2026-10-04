@@ -5,6 +5,12 @@ export interface SessionUserDto {
   name: string;
   email: string;
   role: UserRole;
+  /**
+   * True while the account is still on an administrator-issued temporary
+   * password. The frontend surfaces this as a persistent reminder; the API does
+   * not block on it, so a user is never trapped out of recording stock.
+   */
+  mustChangePassword: boolean;
 }
 
 export interface UserDto extends SessionUserDto {

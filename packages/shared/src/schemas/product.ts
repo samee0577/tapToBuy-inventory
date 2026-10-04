@@ -26,10 +26,22 @@ export const productCodeSchema = z
   )
   .transform((value) => value.toUpperCase());
 
-export const R2_OBJECT_KEY_PATTERN = /^products\/[0-9a-f-]{36}\/[0-9a-z-]+\.[a-z0-9]{2,5}$/;
+/**
+ * Matches a Cloudinary public_id in the shape this application mints:
+ * `<folder>/<uuid>`. The UUID is what makes the identifier unguessable, so a
+ * client cannot name an asset it was not granted.
+ *
+ * Validating this on write is what stops a caller attaching an arbitrary
+ * Cloudinary public_id to a product.
+ */
+export const IMAGE_PUBLIC_ID_PATTERN = /^products\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+export const imagePublicIdSchema = z
+  .string()
+  .regex(IMAGE_PUBLIC_ID_PATTERN, 'Invalid image reference');
 
 export const productImageSchema = z.object({
-  imageKey: z.string().regex(R2_OBJECT_KEY_PATTERN, 'Invalid image key'),
+  imageKey: imagePublicIdSchema,
   imageUrl: z.string().url('Invalid image URL'),
 });
 

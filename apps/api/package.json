@@ -19,12 +19,11 @@
     "db:validate": "prisma validate",
     "db:verify": "tsx scripts/verify-db.ts",
     "db:seed": "prisma db seed",
+    "cloudinary:verify": "tsx scripts/verify-cloudinary.ts",
     "user:bootstrap": "tsx scripts/bootstrap-admin.ts",
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.716.0",
-    "@aws-sdk/s3-request-presigner": "^3.716.0",
     "@inventory/shared": "workspace:*",
     "@prisma/client": "^6.1.0",
     "argon2": "^0.41.1",

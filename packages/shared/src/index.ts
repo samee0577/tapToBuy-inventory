@@ -1,5 +1,6 @@
 export * from './domain.js';
 export * from './money.js';
+export * from './images.js';
 
 export * from './constants/pagination.js';
 export * from './constants/stock.js';
@@ -12,6 +13,7 @@ export * from './schemas/category.js';
 export * from './schemas/product.js';
 export * from './schemas/variant.js';
 export * from './schemas/inventory.js';
+export * from './schemas/upload.js';
 
 export * from './dto/user.js';
 export * from './dto/product.js';

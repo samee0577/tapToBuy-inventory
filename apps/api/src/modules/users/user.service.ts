@@ -13,6 +13,7 @@ import { AppError, conflict, notFound } from '../../lib/errors.js';
 import { hashPassword } from '../../lib/password.js';
 import { prisma } from '../../lib/prisma.js';
 import { isUniqueViolationOn } from '../../lib/prisma-errors.js';
+import { generateTemporaryPassword } from '../../lib/temporary-password.js';
 import { logger } from '../../lib/logger.js';
 import { AUTH_SELECT, toUserDto } from '../../serializers/user.js';
 
@@ -118,17 +119,32 @@ export async function updateUser(
       await assertNotLastActiveAdmin(targetUserId, tx);
     }
 
-    const updated = await tx.user.update({
-      where: { id: targetUserId },
-      data: {
-        ...(input.name === undefined ? {} : { name: input.name }),
-        ...(input.role === undefined ? {} : { role: input.role }),
-        ...(input.isActive === undefined ? {} : { isActive: input.isActive }),
-      },
-      select: AUTH_SELECT,
-    });
+    if (input.email !== undefined) {
+      await assertEmailCanBeChanged(targetUserId, input.email, tx);
+    }
 
-    return updated;
+    try {
+      const updated = await tx.user.update({
+        where: { id: targetUserId },
+        data: {
+          ...(input.name === undefined ? {} : { name: input.name }),
+          ...(input.email === undefined ? {} : { email: input.email }),
+          ...(input.role === undefined ? {} : { role: input.role }),
+          ...(input.isActive === undefined ? {} : { isActive: input.isActive }),
+        },
+        select: AUTH_SELECT,
+      });
+
+      return updated;
+    } catch (error) {
+      if (isUniqueViolationOn(error, ['email'])) {
+        throw conflict(
+          ApiErrorCode.DUPLICATE_EMAIL,
+          'Another account already uses that email address.',
+        );
+      }
+      throw error;
+    }
   });
 
   logger.info(
@@ -137,9 +153,84 @@ export async function updateUser(
       targetUserId,
       role: user.role,
       isActive: user.isActive,
+      emailChanged: input.email !== undefined,
     },
     'admin updated a user',
   );
 
   return toUserDto(user);
+}
+
+/**
+ * Refuses to change the email of an account that signs in with Google.
+ *
+ * The Google callback resolves an account by email address. Moving the account's
+ * email away from the one Google asserts would leave that person unable to sign
+ * in at all, and the failure would look like a bug rather than a bad edit. The
+ * honest fix is to change the address in the Google account itself.
+ */
+async function assertEmailCanBeChanged(
+  targetUserId: string,
+  nextEmail: string,
+  tx: Prisma.TransactionClient,
+): Promise<void> {
+  const target = await tx.user.findUnique({
+    where: { id: targetUserId },
+    select: { email: true, googleId: true },
+  });
+
+  if (!target) throw notFound('User');
+
+  // No-op change: nothing to validate, and it must not trip the Google guard.
+  if (target.email === nextEmail) return;
+
+  if (target.googleId !== null) {
+    throw new AppError(
+      ApiErrorCode.VALIDATION_ERROR,
+      'This account signs in with Google. Change the email address in the Google account instead.',
+      409,
+    );
+  }
+}
+
+/**
+ * Issues a one-time password and flags the account so the holder is reminded to
+ * replace it. This exists because a deactivated employee cannot simply be deleted:
+ * their name is attached to inventory movements that must be preserved.
+ *
+ * The password is generated here rather than supplied by the administrator, so it
+ * cannot be weak, reused from another account, or chosen from a predictable
+ * pattern. It is returned exactly once and never stored in plaintext.
+ */
+export async function resetUserPassword(
+  targetUserId: string,
+  actorId: string,
+): Promise<{ temporaryPassword: string }> {
+  const target = await prisma.user.findUnique({
+    where: { id: targetUserId },
+    select: { id: true, googleId: true },
+  });
+
+  if (!target) throw notFound('User');
+
+  if (target.googleId !== null) {
+    throw new AppError(
+      ApiErrorCode.VALIDATION_ERROR,
+      'This account signs in with Google and has no password to reset.',
+      409,
+    );
+  }
+
+  const temporaryPassword = generateTemporaryPassword();
+
+  await prisma.user.update({
+    where: { id: targetUserId },
+    data: {
+      passwordHash: await hashPassword(temporaryPassword),
+      mustChangePassword: true,
+    },
+  });
+
+  logger.warn({ actorId, targetUserId }, 'admin reset a user password');
+  return { temporaryPassword };
 }

@@ -18,6 +18,7 @@ userRouter.use(requireAuth, requireRole(UserRole.ADMIN));
 userRouter.get('/', controller.list);
 userRouter.post('/', authRateLimiter, controller.create);
 userRouter.patch('/:id', controller.update);
+userRouter.post('/:id/reset-password', authRateLimiter, controller.resetPassword);
 
 // Deliberately no DELETE. Users are deactivated, never deleted: an inventory
 // movement references the user who performed it and those rows are append-only,

@@ -82,11 +82,16 @@ export const changePassword = asyncHandler(async (req: Request, res: Response) =
 
   await prisma.user.update({
     where: { id: actor.id },
-    data: { passwordHash: await hashPassword(input.newPassword) },
+    data: {
+      passwordHash: await hashPassword(input.newPassword),
+      // Changing the password is exactly what clears the reminder, so the flag is
+      // cleared here rather than in a separate call the UI could forget.
+      mustChangePassword: false,
+    },
   });
 
   logger.info({ actorId: actor.id }, 'user changed their own password');
-  sendData(res, { updated: true });
+  sendData(res, { updated: true, mustChangePassword: false });
 });
 
 export const startGoogleSignIn = asyncHandler(async (req: Request, res: Response) => {

@@ -5,6 +5,7 @@ import { ApiErrorCode } from '@inventory/shared';
 
 import { prisma } from '../../src/lib/prisma.js';
 import {
+  TEST_PASSWORD,
   api,
   authCookie,
   createTestUser,
@@ -194,6 +195,247 @@ describe('the last active administrator is protected', () => {
       .set(await authCookie(admin))
       .send({ isActive: false })
       .expect(200);
+  });
+});
+
+describe('administrators can correct an email address', () => {
+  it('changes the email and normalises it to lowercase', async () => {
+    const admin = await makeUser({ role: UserRole.ADMIN });
+    const staff = await makeUser({ role: UserRole.STAFF });
+    const newEmail = `Corrected-${Date.now()}@Example.COM`;
+
+    const response = await api()
+      .patch(`/api/users/${staff.id}`)
+      .set(await authCookie(admin))
+      .send({ email: newEmail })
+      .expect(200);
+
+    expect(response.body.data.email).toBe(newEmail.toLowerCase());
+
+    const persisted = await prisma.user.findUniqueOrThrow({
+      where: { id: staff.id },
+      select: { email: true },
+    });
+    expect(persisted.email).toBe(newEmail.toLowerCase());
+  });
+
+  it('lets the user sign in with the corrected address', async () => {
+    const admin = await makeUser({ role: UserRole.ADMIN });
+    const staff = await makeUser({ role: UserRole.STAFF });
+    const newEmail = `signin-${Date.now()}@example.test`;
+
+    await api()
+      .patch(`/api/users/${staff.id}`)
+      .set(await authCookie(admin))
+      .send({ email: newEmail })
+      .expect(200);
+
+    await api()
+      .post('/api/auth/login')
+      .send({ email: newEmail, password: TEST_PASSWORD })
+      .expect(200);
+  });
+
+  it('rejects an email already used by another account', async () => {
+    const admin = await makeUser({ role: UserRole.ADMIN });
+    const other = await makeUser({ role: UserRole.STAFF });
+
+    const response = await api()
+      .patch(`/api/users/${other.id}`)
+      .set(await authCookie(admin))
+      .send({ email: admin.email })
+      .expect(409);
+
+    expect(response.body.error.code).toBe(ApiErrorCode.DUPLICATE_EMAIL);
+  });
+
+  it('refuses to change the email of a Google-linked account', async () => {
+    const admin = await makeUser({ role: UserRole.ADMIN });
+    const googleUser = await makeUser({ role: UserRole.STAFF });
+
+    // Simulate the account having completed a Google sign-in at least once.
+    await prisma.user.update({
+      where: { id: googleUser.id },
+      data: { googleId: `google-${Date.now()}` },
+    });
+
+    const response = await api()
+      .patch(`/api/users/${googleUser.id}`)
+      .set(await authCookie(admin))
+      .send({ email: `changed-${Date.now()}@example.test` })
+      .expect(409);
+
+    expect(response.body.error.code).toBe(ApiErrorCode.VALIDATION_ERROR);
+    expect(response.body.error.message).toMatch(/Google/i);
+
+    const persisted = await prisma.user.findUniqueOrThrow({
+      where: { id: googleUser.id },
+      select: { email: true },
+    });
+    expect(persisted.email).toBe(googleUser.email);
+  });
+
+  it('still allows unrelated changes to a Google-linked account', async () => {
+    const admin = await makeUser({ role: UserRole.ADMIN });
+    const googleUser = await makeUser({ role: UserRole.STAFF });
+
+    await prisma.user.update({
+      where: { id: googleUser.id },
+      data: { googleId: `google-${Date.now()}` },
+    });
+
+    await api()
+      .patch(`/api/users/${googleUser.id}`)
+      .set(await authCookie(admin))
+      .send({ name: 'Renamed Person', isActive: false })
+      .expect(200);
+  });
+
+  it('rejects a malformed email', async () => {
+    const admin = await makeUser({ role: UserRole.ADMIN });
+    const staff = await makeUser({ role: UserRole.STAFF });
+
+    const response = await api()
+      .patch(`/api/users/${staff.id}`)
+      .set(await authCookie(admin))
+      .send({ email: 'not-an-email' })
+      .expect(400);
+
+    expect(response.body.error.code).toBe(ApiErrorCode.VALIDATION_ERROR);
+  });
+});
+
+describe('administrators can issue a temporary password', () => {
+  it('returns a usable password once and flags the account', async () => {
+    const admin = await makeUser({ role: UserRole.ADMIN });
+    const staff = await makeUser({ role: UserRole.STAFF });
+
+    const response = await api()
+      .post(`/api/users/${staff.id}/reset-password`)
+      .set(await authCookie(admin))
+      .expect(200);
+
+    const temporaryPassword = response.body.data.temporaryPassword;
+    expect(typeof temporaryPassword).toBe('string');
+    expect(temporaryPassword.length).toBeGreaterThanOrEqual(12);
+    expect(response.body.data.mustChangePassword).toBe(true);
+    // The generated value must never be echoed back inside a hash.
+    expect(JSON.stringify(response.body)).not.toMatch(/\$argon2/);
+
+    const persisted = await prisma.user.findUniqueOrThrow({
+      where: { id: staff.id },
+      select: { mustChangePassword: true },
+    });
+    expect(persisted.mustChangePassword).toBe(true);
+
+    // It works for sign-in, and the old password stops working.
+    await api()
+      .post('/api/auth/login')
+      .send({ email: staff.email, password: temporaryPassword })
+      .expect(200);
+
+    await api()
+      .post('/api/auth/login')
+      .send({ email: staff.email, password: TEST_PASSWORD })
+      .expect(401);
+  });
+
+  it('reports the reminder on the session so the UI can prompt', async () => {
+    const admin = await makeUser({ role: UserRole.ADMIN });
+    const staff = await makeUser({ role: UserRole.STAFF });
+
+    const reset = await api()
+      .post(`/api/users/${staff.id}/reset-password`)
+      .set(await authCookie(admin))
+      .expect(200);
+
+    const login = await api()
+      .post('/api/auth/login')
+      .send({ email: staff.email, password: reset.body.data.temporaryPassword })
+      .expect(200);
+
+    expect(login.body.data.user.mustChangePassword).toBe(true);
+
+    const me = await api().get('/api/auth/me').set(await authCookie(staff)).expect(200);
+    expect(me.body.data.user.mustChangePassword).toBe(true);
+  });
+
+  it('is cleared once the user changes their own password', async () => {
+    const admin = await makeUser({ role: UserRole.ADMIN });
+    const staff = await makeUser({ role: UserRole.STAFF });
+
+    const reset = await api()
+      .post(`/api/users/${staff.id}/reset-password`)
+      .set(await authCookie(admin))
+      .expect(200);
+
+    const temporaryPassword = reset.body.data.temporaryPassword as string;
+
+    const staffCookie = await authCookie(staff);
+    const change = await api()
+      .post('/api/auth/change-password')
+      .set(staffCookie)
+      .send({ currentPassword: temporaryPassword, newPassword: 'BrandNewPass77' })
+      .expect(200);
+
+    expect(change.body.data.mustChangePassword).toBe(false);
+
+    const persisted = await prisma.user.findUniqueOrThrow({
+      where: { id: staff.id },
+      select: { mustChangePassword: true },
+    });
+    expect(persisted.mustChangePassword).toBe(false);
+
+    await api()
+      .post('/api/auth/login')
+      .send({ email: staff.email, password: 'BrandNewPass77' })
+      .expect(200);
+  });
+
+  it('refuses a STAFF user the ability to reset anyone', async () => {
+    const staff = await makeUser({ role: UserRole.STAFF });
+    const victim = await makeUser({ role: UserRole.STAFF });
+
+    await api()
+      .post(`/api/users/${victim.id}/reset-password`)
+      .set(await authCookie(staff))
+      .expect(403);
+
+    // And the victim's password is untouched.
+    await api()
+      .post('/api/auth/login')
+      .send({ email: victim.email, password: TEST_PASSWORD })
+      .expect(200);
+  });
+
+  it('refuses to reset a Google-only account', async () => {
+    const admin = await makeUser({ role: UserRole.ADMIN });
+    const googleUser = await makeUser({ role: UserRole.STAFF });
+
+    await prisma.user.update({
+      where: { id: googleUser.id },
+      data: { googleId: `google-${Date.now()}` },
+    });
+
+    const response = await api()
+      .post(`/api/users/${googleUser.id}/reset-password`)
+      .set(await authCookie(admin))
+      .expect(409);
+
+    expect(response.body.error.message).toMatch(/Google/i);
+  });
+
+  it('does not affect the last active administrator', async () => {
+    // Resetting a password is orthogonal to the admin guard: it neither promotes
+    // nor demotes anyone, so it must remain available for a locked-out admin.
+    const admin = await makeUser({ role: UserRole.ADMIN });
+
+    const response = await api()
+      .post(`/api/users/${admin.id}/reset-password`)
+      .set(await authCookie(admin))
+      .expect(200);
+
+    expect(typeof response.body.data.temporaryPassword).toBe('string');
   });
 });
 

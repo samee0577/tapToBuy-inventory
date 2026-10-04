@@ -95,12 +95,34 @@ export interface PriceHistoryDto {
   entries: PriceHistoryEntryDto[];
 }
 
-/** A short-lived R2 PUT target handed to the browser for direct upload. */
-export interface PresignedUploadDto {
+/**
+ * Everything the browser needs to upload one image directly to Cloudinary.
+ *
+ * `fields` is a complete, signed parameter set. Cloudinary rejects the upload if
+ * the signature does not match, so the browser cannot add a parameter of its own
+ * or widen `allowed_formats`.
+ */
+export interface CloudinaryUploadTicketDto {
   uploadUrl: string;
-  objectKey: string;
-  publicUrl: string;
-  expiresInSeconds: number;
-  requiredHeaders: Record<string, string>;
+  publicId: string;
+  fields: Record<string, string>;
+  /** Presented at /api/uploads/complete to prove this upload was authorised. */
+  uploadToken: string;
   maxBytes: number;
+  allowedFormats: readonly string[];
+  acceptedContentTypes: readonly string[];
+  expiresInSeconds: number;
+}
+
+/**
+ * The result of re-reading an uploaded asset from Cloudinary's admin API. The
+ * values come from the stored asset, not from what the browser claimed.
+ */
+export interface VerifiedImageDto {
+  imageKey: string;
+  imageUrl: string;
+  width: number;
+  height: number;
+  bytes: number;
+  format: string;
 }

@@ -42,3 +42,23 @@ export const update = asyncHandler(async (req: Request, res: Response) => {
     throw error;
   }
 });
+
+/**
+ * Returns the temporary password in the response body, which means it exists in
+ * the browser's network log for the length of the request. It is shown once, in
+ * a dialog the administrator reads out or copies, and never stored. A separate
+ * "send invite" flow would be the right answer for a public product; for a shop
+ * handing a password to the person at the next counter it is proportionate.
+ */
+export const resetPassword = asyncHandler(async (req: Request, res: Response) => {
+  const actor = authUser(req);
+  const targetUserId = req.params.id ?? '';
+
+  try {
+    const result = await userService.resetUserPassword(targetUserId, actor.id);
+    sendData(res, { ...result, mustChangePassword: true });
+  } catch (error) {
+    if (isNotFoundError(error)) throw notFound('User');
+    throw error;
+  }
+});
