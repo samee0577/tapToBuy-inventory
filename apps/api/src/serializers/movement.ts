@@ -1,4 +1,5 @@
 import {
+  deriveStockStatus,
   isAdmin,
   multiplyMoney,
   profitDirection,
@@ -167,6 +168,9 @@ export function serializeInventoryRow(row: InventoryRow, role: UserRole): Invent
     color: row.color,
     sellingPrice: toMoneyString(row.sellingPrice),
     stockQuantity: row.stockQuantity,
+    // Derived server-side from the shared thresholds, so the badge on a row and the
+    // `?stockStatus=` filter that produced it cannot disagree.
+    stockStatus: deriveStockStatus(row.stockQuantity),
     stockValue: multiplyMoney(toMoneyString(row.sellingPrice), row.stockQuantity),
     isActive: row.isActive,
     productIsActive: row.product.isActive,

@@ -1,4 +1,4 @@
-import type { ProductListItemDto } from './product.js';
+import type { StockStatus } from '../constants/stock.js';
 
 export interface DashboardCountDto {
   totalProducts: number;
@@ -52,7 +52,7 @@ export interface LowStockItemDto {
   size: string;
   color: string;
   stockQuantity: number;
-  stockStatus: string;
+  stockStatus: StockStatus;
 }
 
 export interface DashboardBaseDto {
@@ -63,10 +63,33 @@ export interface DashboardBaseDto {
   generatedAt: string;
 }
 
+/**
+ * One row of the dashboard's top-earners list.
+ *
+ * Deliberately not a `VariantDto`. This list answers "what made the most money",
+ * which needs the units sold and the profit — not the variant's audit timestamps,
+ * active flag or current margin. Reusing the variant shape would drag those along
+ * and then compute figures nobody displays.
+ */
+export interface TopVariantDto {
+  variantId: string;
+  productId: string;
+  productName: string;
+  productCode: string;
+  imageUrl: string | null;
+  size: string;
+  color: string;
+  sellingPrice: string;
+  stockQuantity: number;
+  unitsSold: number;
+  /** Realized over the selected range, from frozen movement snapshots. */
+  profit: string;
+}
+
 export interface DashboardAdminDto extends DashboardBaseDto {
   financials: DashboardFinancialsDto;
   /** Present only for ADMIN; omitted entirely for STAFF. */
-  topProfitableVariants: Array<ProductListItemDto['variants'][number] & { productName: string }>;
+  topProfitableVariants: TopVariantDto[];
 }
 
 export type DashboardDto = DashboardBaseDto | DashboardAdminDto;

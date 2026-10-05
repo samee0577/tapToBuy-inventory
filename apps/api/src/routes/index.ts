@@ -2,6 +2,7 @@ import { Router } from 'express';
 
 import { authRouter } from '../modules/auth/auth.routes.js';
 import { categoryRouter } from '../modules/categories/category.routes.js';
+import { dashboardRouter } from '../modules/dashboard/dashboard.routes.js';
 import { healthRouter } from '../modules/health/health.routes.js';
 import { inventoryRouter } from '../modules/inventory/inventory.routes.js';
 import { productRouter } from '../modules/products/product.routes.js';
@@ -15,6 +16,7 @@ apiRouter.use('/health', healthRouter);
 apiRouter.use('/auth', authRouter);
 apiRouter.use('/users', userRouter);
 apiRouter.use('/categories', categoryRouter);
+apiRouter.use('/dashboard', dashboardRouter);
 apiRouter.use('/products', productRouter);
 apiRouter.use('/uploads', uploadRouter);
 

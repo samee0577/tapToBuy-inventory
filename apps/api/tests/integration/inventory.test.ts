@@ -562,24 +562,28 @@ describe('GET /api/inventory', () => {
   });
 
   it('sorts by product name in both directions', async () => {
-    // Three rows with distinct names, all sharing a prefix, so the search scopes
-    // the assertion to exactly this test. The wider table holds duplicates from
-    // other suites and names whose Postgres collation order differs from
+    // Three distinct names sharing a token that is unique to this call, so the
+    // search scopes the assertion to exactly this test. A fixed prefix would also
+    // match rows left by an earlier run of this file — the schema is only
+    // recreated by the full `pnpm test`, and a bare `vitest run` reuses it — and the
+    // wider table also holds names whose Postgres collation order differs from
     // JavaScript's, neither of which this test is about.
-    const names = ['Ival-Alder', 'Ival-Birch', 'Ival-Cedar'];
+    const token = unique('Sort');
+    const names = ['Alder', 'Birch', 'Cedar'].map((name) => `${token}-${name}`);
+
     for (const productName of names) {
       await makeVariant({ initialStock: 5, productName });
     }
 
     const ascending = await api()
       .get('/api/inventory')
-      .query({ search: 'Ival-', sortBy: 'productName', sortOrder: 'asc' })
+      .query({ search: token, sortBy: 'productName', sortOrder: 'asc' })
       .set(await authCookie(admin))
       .expect(200);
 
     const descending = await api()
       .get('/api/inventory')
-      .query({ search: 'Ival-', sortBy: 'productName', sortOrder: 'desc' })
+      .query({ search: token, sortBy: 'productName', sortOrder: 'desc' })
       .set(await authCookie(admin))
       .expect(200);
 
@@ -829,16 +833,18 @@ describe('GET /api/inventory/movements', () => {
   });
 
   it('sorts by product name through the variant join', async () => {
-    // Scoped to distinct names so the expected order is unambiguous, for the same
+    // Scoped to distinct names under a token unique to this call, for the same
     // reason as the inventory sort case.
-    const names = ['Ivar-Alder', 'Ivar-Birch', 'Ivar-Cedar'];
+    const token = unique('Sort');
+    const names = ['Alder', 'Birch', 'Cedar'].map((name) => `${token}-${name}`);
+
     for (const productName of names) {
       await makeVariant({ initialStock: 2, productName });
     }
 
     const ascending = await api()
       .get('/api/inventory/movements')
-      .query({ search: 'Ivar-', sortBy: 'product', sortOrder: 'asc' })
+      .query({ search: token, sortBy: 'product', sortOrder: 'asc' })
       .set(await authCookie(admin))
       .expect(200);
     expect(
@@ -847,7 +853,7 @@ describe('GET /api/inventory/movements', () => {
 
     const descending = await api()
       .get('/api/inventory/movements')
-      .query({ search: 'Ivar-', sortBy: 'product', sortOrder: 'desc' })
+      .query({ search: token, sortBy: 'product', sortOrder: 'desc' })
       .set(await authCookie(admin))
       .expect(200);
     expect(

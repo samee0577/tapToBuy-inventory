@@ -1,4 +1,5 @@
 import type { InventoryMovementType } from '../domain.js';
+import type { StockStatus } from '../constants/stock.js';
 import type { AuditStampDto } from './user.js';
 
 export interface MovementBaseDto {
@@ -62,6 +63,11 @@ export interface InventoryRowBaseDto {
   color: string;
   sellingPrice: string;
   stockQuantity: number;
+  /**
+   * Derived, not stored, and sent by the server so the badge on this row and the
+   * `?stockStatus=` filter that produced it can never disagree about the thresholds.
+   */
+  stockStatus: StockStatus;
   /** sellingPrice x stockQuantity, in money. */
   stockValue: string;
   isActive: boolean;
