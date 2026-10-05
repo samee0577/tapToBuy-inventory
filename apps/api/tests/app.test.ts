@@ -81,6 +81,49 @@ describe('CORS', () => {
   it('allows a request with no Origin, which is the same-origin production case', async () => {
     await request(app).get('/api/health').expect(200);
   });
+
+  it('allows a randomised *.vercel.app origin on a preview deployment', async () => {
+    process.env.VERCEL_ENV = 'preview';
+    try {
+      const response = await request(app)
+        .get('/api/health')
+        .set('Origin', 'https://taptobuy-inventory-a1b2c3d4.vercel.app')
+        .expect(200);
+
+      expect(response.headers['access-control-allow-origin']).toBe(
+        'https://taptobuy-inventory-a1b2c3d4.vercel.app',
+      );
+      expect(response.headers['access-control-allow-credentials']).toBe('true');
+    } finally {
+      delete process.env.VERCEL_ENV;
+    }
+  });
+
+  it('still refuses a *.vercel.app origin on production, where hosts are exact-matched', async () => {
+    process.env.VERCEL_ENV = 'production';
+    try {
+      const response = await request(app)
+        .get('/api/health')
+        .set('Origin', 'https://taptobuy-inventory-a1b2c3d4.vercel.app')
+        .expect(403);
+
+      expect(response.body.error.code).toBe('FORBIDDEN');
+    } finally {
+      delete process.env.VERCEL_ENV;
+    }
+  });
+
+  it('does not let a host that merely mentions vercel.app pass the suffix check', async () => {
+    process.env.VERCEL_ENV = 'preview';
+    try {
+      await request(app)
+        .get('/api/health')
+        .set('Origin', 'https://vercel.app.attacker.example')
+        .expect(403);
+    } finally {
+      delete process.env.VERCEL_ENV;
+    }
+  });
 });
 
 describe('security headers', () => {

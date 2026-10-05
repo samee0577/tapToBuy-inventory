@@ -28,6 +28,23 @@ const corsOptions: CorsOptions = {
       callback(null, true);
       return;
     }
+    /**
+     * Vercel gives every preview deployment a random <project>-<hash>.vercel.app
+     * host, which no exact-match allow-list can enumerate. Browsers send Origin
+     * even on same-origin POSTs, so without this every write on a preview
+     * deployment would be refused with a 403 while reads kept working.
+     *
+     * Read per request rather than at module load, so the test suite can vary it.
+     * Scoped to preview on purpose: production still matches CORS_ORIGINS
+     * exactly, and this is not configurable, so no wildcard can be introduced by
+     * accident. Letting one Vercel project call another's preview deployment is
+     * harmless anyway, because the session cookie is host-only and SameSite=Lax
+     * already refuses to send it on cross-site sub-requests.
+     */
+    if (process.env.VERCEL_ENV === 'preview' && origin.endsWith('.vercel.app')) {
+      callback(null, true);
+      return;
+    }
     callback(new AppError(ApiErrorCode.FORBIDDEN, 'Origin is not allowed.', 403));
   },
   credentials: true,
