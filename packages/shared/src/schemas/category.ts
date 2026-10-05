@@ -8,10 +8,17 @@ export const categoryNameSchema = z
   .min(2, 'Category name must be at least 2 characters')
   .max(60, 'Category name must be at most 60 characters');
 
+/**
+ * Accepts `null` as well as `undefined` so an edit can explicitly clear a
+ * description. Absent and empty collapse to the same stored value, which keeps
+ * "not provided" and "cleared" distinguishable in the request while producing one
+ * representation in the database.
+ */
 export const categoryDescriptionSchema = z
   .string()
   .trim()
   .max(280, 'Description must be at most 280 characters')
+  .nullable()
   .optional()
   .transform((value) => (value && value.length > 0 ? value : undefined));
 

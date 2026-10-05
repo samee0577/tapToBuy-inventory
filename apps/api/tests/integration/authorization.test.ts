@@ -145,10 +145,29 @@ describe('deactivation takes effect immediately', () => {
   });
 });
 
+/**
+ * Establishes the precondition these tests need: that `keep` are the only active
+ * administrators in the database.
+ *
+ * The guard under test counts every active admin, so it can only be exercised when
+ * the suite knows there are no others. Earlier suites in this run legitimately
+ * leave admins behind — products.test.ts cannot clean up, because the fixtures it
+ * creates are referenced by append-only rows. Asserting a precondition instead of
+ * inheriting whatever the previous suite happened to leave is what makes these
+ * tests deterministic rather than order-dependent.
+ */
+async function isolateActiveAdmins(keep: readonly string[]): Promise<void> {
+  await prisma.user.updateMany({
+    where: { role: UserRole.ADMIN, isActive: true, id: { notIn: [...keep] } },
+    data: { isActive: false },
+  });
+}
+
 describe('the last active administrator is protected', () => {
   it('refuses to demote the only active admin', async () => {
     const admin = await makeUser({ role: UserRole.ADMIN });
     const otherAdmin = await makeUser({ role: UserRole.ADMIN });
+    await isolateActiveAdmins([admin.id, otherAdmin.id]);
 
     // With a second admin present, demotion is allowed.
     await api()
@@ -170,6 +189,7 @@ describe('the last active administrator is protected', () => {
   it('refuses to deactivate the only active admin', async () => {
     const admin = await makeUser({ role: UserRole.ADMIN });
     const otherAdmin = await makeUser({ role: UserRole.ADMIN });
+    await isolateActiveAdmins([admin.id, otherAdmin.id]);
 
     await api()
       .patch(`/api/users/${admin.id}`)
@@ -189,6 +209,7 @@ describe('the last active administrator is protected', () => {
   it('does not block changes to a staff member when only one admin exists', async () => {
     const admin = await makeUser({ role: UserRole.ADMIN });
     const staff = await makeUser({ role: UserRole.STAFF });
+    await isolateActiveAdmins([admin.id]);
 
     await api()
       .patch(`/api/users/${staff.id}`)

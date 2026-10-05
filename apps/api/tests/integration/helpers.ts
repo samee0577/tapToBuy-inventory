@@ -1,11 +1,10 @@
 /**
  * Shared helpers for database-backed suites.
  *
- * These suites write to the configured database. Every record is created with a
- * distinctive prefix and removed in the suite's own afterAll. Note that
- * inventory_movements are append-only by design and therefore cannot be deleted;
- * any suite that leaves movement history behind must be pointed at a disposable
- * Neon branch via TEST_DATABASE_URL rather than the primary database.
+ * Every suite runs against the disposable `inventory_test` database, prepared by
+ * scripts/prepare-test-db.ts before each run. That matters because inventory
+ * movements are append-only by design: fixtures created in the live schema could
+ * never be removed.
  */
 import { UserRole } from '@prisma/client';
 import { expect } from 'vitest';
@@ -17,6 +16,28 @@ import { SESSION_COOKIE_NAME } from '../../src/config/session.js';
 import { hashPassword } from '../../src/lib/password.js';
 import { prisma } from '../../src/lib/prisma.js';
 import { signSessionToken } from '../../src/lib/session-token.js';
+import { isTestDatabaseUrl } from '../../src/lib/test-database.js';
+
+/**
+ * Hard stop against writing fixtures into the shop's real inventory.
+ *
+ * The inventory ledger is append-only, so a test product with stock could never be
+ * cleaned up if it landed in the live database. globalSetup points DATABASE_URL at
+ * a disposable database; this checks that actually took effect before any suite is
+ * allowed to import the Prisma client and write.
+ */
+if (!isTestDatabaseUrl(process.env.DATABASE_URL)) {
+  throw new Error(
+    'Refusing to run: DATABASE_URL does not point at the test database.\n' +
+      'Integration tests must be launched with `pnpm --filter @inventory/api test`, ' +
+      'which invokes scripts/prepare-test-db.ts first.\n' +
+      `Current database: ${
+        process.env.DATABASE_URL
+          ? new URL(process.env.DATABASE_URL).pathname.replace(/^\//, '') || '(none)'
+          : '(unset)'
+      }`,
+  );
+}
 
 export const app = createApp();
 

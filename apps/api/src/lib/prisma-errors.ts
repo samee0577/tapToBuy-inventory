@@ -23,10 +23,24 @@ export function uniqueConstraintTargets(error: unknown): string[] {
   return typeof target === 'string' ? [target] : [];
 }
 
+/**
+ * Prisma reports the *database column* in `meta.target`, which for a mapped field
+ * differs from the TypeScript field name (`product_code` vs `productCode`).
+ * Comparing with underscores removed and case folded means a caller can name
+ * whichever it has to hand.
+ */
+function normaliseIdentifier(name: string): string {
+  return name.replace(/_/g, '').toLowerCase();
+}
+
 /** True when a unique violation was caused by one of the given fields. */
 export function isUniqueViolationOn(error: unknown, fields: readonly string[]): boolean {
   const targets = uniqueConstraintTargets(error);
-  return targets.length > 0 && targets.every((target) => fields.includes(target));
+  if (targets.length === 0) return false;
+
+  return targets.every((target) =>
+    fields.some((field) => normaliseIdentifier(target) === normaliseIdentifier(field)),
+  );
 }
 
 export function isNotFoundError(error: unknown): boolean {

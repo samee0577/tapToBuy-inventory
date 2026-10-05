@@ -8,6 +8,7 @@
  * the helper then reports the database error instead of the rollback sentinel.
  */
 import type { Prisma } from '@prisma/client';
+import { randomUUID } from 'node:crypto';
 import { afterAll, describe, expect, it } from 'vitest';
 
 import { prisma } from '../../src/lib/prisma.js';
@@ -68,15 +69,35 @@ async function withRolledBackTransaction<T>(
   return result;
 }
 
+/**
+ * Unique per call, in whichever case the column demands.
+ *
+ * A timestamp alone is not enough: several of these tests call seedGraph twice,
+ * and two calls landing in the same millisecond would collide and fail the suite
+ * for a reason unrelated to what it is testing.
+ *
+ * Two variants are needed because the database enforces case on these columns —
+ * `users_email_lowercase` and `products_product_code_upper` — and fixtures have to
+ * satisfy exactly the same constraints as real data. A test that writes invalid
+ * rows is not exercising the rules.
+ */
+function uniqueSuffix(): string {
+  return `${Date.now()}-${randomUUID().slice(0, 8)}`;
+}
+
+function upperSuffix(): string {
+  return `${Date.now()}-${randomUUID().slice(0, 8).toUpperCase()}`;
+}
+
 async function seedGraph(tx: Prisma.TransactionClient) {
   const user = await tx.user.create({
-    data: { name: 'Invariant Tester', email: `invariant-${Date.now()}@example.test` },
+    data: { name: 'Invariant Tester', email: `invariant-${uniqueSuffix()}@example.test` },
   });
 
-  const category = await tx.category.create({ data: { name: `Cat-${Date.now()}` } });
+  const category = await tx.category.create({ data: { name: `Cat-${uniqueSuffix()}` } });
 
   const product = await tx.product.create({
-    data: { name: 'Test Product', productCode: `T-${Date.now()}`, categoryId: category.id },
+    data: { name: 'Test Product', productCode: `T-${upperSuffix()}`, categoryId: category.id },
   });
 
   const variant = await tx.productVariant.create({
@@ -100,9 +121,15 @@ afterAll(async () => {
 describe('stock can never be negative', () => {
   it('rejects a variant created with negative stock', async () => {
     const error = await expectViolation(async (tx) => {
-      const category = await tx.category.create({ data: { name: `Cat-${Date.now()}` } });
+      const category = await tx.category.create({
+        data: { name: `Cat-${uniqueSuffix()}` },
+      });
       const product = await tx.product.create({
-        data: { name: 'P', productCode: `T-${Date.now()}`, categoryId: category.id },
+        data: {
+          name: 'P',
+          productCode: `T-${upperSuffix()}`,
+          categoryId: category.id,
+        },
       });
       await tx.productVariant.create({
         data: { productId: product.id, size: 'M', color: 'Black', stockQuantity: -1 },
@@ -203,7 +230,7 @@ describe('prices cannot be negative', () => {
 describe('canonicalisation is enforced in the database', () => {
   it('rejects a lowercase product code', async () => {
     const error = await expectViolation(async (tx) => {
-      const category = await tx.category.create({ data: { name: `Cat-${Date.now()}` } });
+      const category = await tx.category.create({ data: { name: `Cat-${uniqueSuffix()}` } });
       await tx.product.create({
         data: { name: 'P', productCode: 'ts-001', categoryId: category.id },
       });
@@ -238,7 +265,7 @@ describe('uniqueness invariants', () => {
   it('rejects a duplicate product code', async () => {
     const error = await expectViolation(async (tx) => {
       const { product } = await seedGraph(tx);
-      const category = await tx.category.create({ data: { name: `Cat-${Date.now()}` } });
+      const category = await tx.category.create({ data: { name: `Cat-${uniqueSuffix()}` } });
       await tx.product.create({
         data: {
           name: 'Another',

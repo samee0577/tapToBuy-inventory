@@ -48,7 +48,9 @@ const baseSchema = z.object({
 
 const databaseSchema = z.object({
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
-  DIRECT_DATABASE_URL: z.string().optional(),
+  // Required rather than optional: Prisma's `directUrl` reads it, and migrations
+  // must run unpooled, so there is no configuration in which it can be absent.
+  DIRECT_DATABASE_URL: z.string().min(1, 'DIRECT_DATABASE_URL is required'),
 });
 
 const sessionSchema = z.object({

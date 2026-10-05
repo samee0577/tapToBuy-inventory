@@ -32,6 +32,24 @@ export function isSevereLowStock(quantity: number): boolean {
 }
 
 /**
+ * Translates a stock status into the numeric range that produces it.
+ *
+ * Stock status is derived, never stored, so a query filtering by it has to
+ * restate the rule as a range. Keeping the two definitions adjacent is what stops
+ * the filter and the displayed badge from disagreeing.
+ */
+export function stockStatusToRange(status: StockStatus): { gt?: number; lte?: number } {
+  switch (status) {
+    case StockStatus.OUT_OF_STOCK:
+      return { lte: 0 };
+    case StockStatus.LOW_STOCK:
+      return { gt: 0, lte: LOW_STOCK_MAX_UNITS };
+    case StockStatus.IN_STOCK:
+      return { gt: LOW_STOCK_MAX_UNITS };
+  }
+}
+
+/**
  * Upper bound on a single movement's quantity. Guards against a fat-fingered
  * STOCK_IN of 10^9 units and keeps `previousStock + quantity` inside Int32.
  */
