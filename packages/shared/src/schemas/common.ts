@@ -98,3 +98,34 @@ export const isoDateSchema = z
 export function toDate(value: string): Date {
   return new Date(value);
 }
+
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Turns a `from`/`to` pair into an inclusive instant range for a timestamp query.
+ *
+ * A bare `to=2026-03-04` is understood the way a person reading a filter drawer
+ * means it: "up to and including the 4th". Parsed naively it resolves to
+ * midnight, which silently drops every movement recorded during that day — the
+ * kind of off-by-one that makes a shop's history look incomplete with no error
+ * anywhere. A full datetime is taken literally, so `to=2026-03-04T18:30:00Z`
+ * still means that exact instant.
+ */
+export function toDateRange(
+  from?: string,
+  to?: string,
+): { gte?: Date; lte?: Date } {
+  return {
+    ...(from === undefined ? {} : { gte: toDate(from) }),
+    ...(to === undefined
+      ? {}
+      : { lte: DATE_ONLY_PATTERN.test(to) ? endOfDayUtc(to) : toDate(to) }),
+  };
+}
+
+function endOfDayUtc(dateOnly: string): Date {
+  // 23:59:59.999 rather than the start of the next day: it needs no date
+  // arithmetic, so it cannot be thrown off by a daylight-saving boundary in a
+  // timezone the server does not share with the user who typed the filter.
+  return new Date(`${dateOnly}T23:59:59.999Z`);
+}

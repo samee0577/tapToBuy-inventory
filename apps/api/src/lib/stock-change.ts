@@ -1,5 +1,6 @@
 import {
   ApiErrorCode,
+  MAX_STOCK_QUANTITY,
   type InventoryMovementType,
   type StockStatus,
   deriveStockStatus,
@@ -114,10 +115,21 @@ export async function applyStockChange(
   }
 
   // Checked before the write so the caller gets a precise, actionable message
-  // instead of a database constraint violation. The CHECK constraint on
-  // stock_quantity remains the backstop.
+  // instead of a database constraint violation. The CHECK constraints on
+  // stock_quantity remain the backstop.
   if (newStock < 0) {
     throw insufficientStock(previousStock, quantity);
+  }
+
+  // Two billion units is not a real quantity of anything; it is where Int32
+  // arithmetic would start to overflow. The schema caps it there, and this gives
+  // the user a message they can act on rather than a constraint violation.
+  if (newStock > MAX_STOCK_QUANTITY) {
+    throw new AppError(
+      ApiErrorCode.VALIDATION_ERROR,
+      'That quantity is beyond the maximum stock level this system can record.',
+      400,
+    );
   }
 
   const updated = await tx.productVariant.updateMany({

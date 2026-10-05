@@ -49,3 +49,55 @@ export interface StockOperationResultDto {
     updatedAt: string;
   };
 }
+
+export interface InventoryRowBaseDto {
+  variantId: string;
+  productId: string;
+  productName: string;
+  productCode: string;
+  imageUrl: string | null;
+  categoryId: string;
+  categoryName: string;
+  size: string;
+  color: string;
+  sellingPrice: string;
+  stockQuantity: number;
+  /** sellingPrice x stockQuantity, in money. */
+  stockValue: string;
+  isActive: boolean;
+  productIsActive: boolean;
+  updatedAt: string;
+}
+
+export interface InventoryRowAdminDto extends InventoryRowBaseDto {
+  buyingPrice: string;
+  /** buyingPrice x stockQuantity, in money. */
+  stockCostValue: string;
+}
+
+export type InventoryRowDto = InventoryRowBaseDto | InventoryRowAdminDto;
+
+export function hasInventoryCost(row: InventoryRowDto): row is InventoryRowAdminDto {
+  return 'buyingPrice' in row;
+}
+
+/** Distinct filter values, so the drawer needs no second request to populate. */
+export interface InventoryFacetsDto {
+  sizes: string[];
+  colors: string[];
+}
+
+/**
+ * Headline figures for the dashboard header. Money strings, because every money
+ * value on the wire is.
+ */
+export interface InventorySummaryDto {
+  totalVariants: number;
+  totalStockUnits: number;
+  lowStockVariants: number;
+  severeLowStockVariants: number;
+  outOfStockVariants: number;
+  costValue: string;
+  retailValue: string;
+  potentialProfit: string;
+}
