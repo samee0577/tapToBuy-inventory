@@ -1,22 +1,16 @@
-import { SignJWT, jwtVerify } from 'jose';
-
 import type { UserRole } from '@inventory/shared';
 
 import { sessionEnv } from '../config/env.js';
+import { signJwt, verifyJwt } from './jwt.js';
 
-const ISSUER = 'inventory-api';
-const AUDIENCE = 'inventory-web';
-const ALGORITHM = 'HS256';
+const SESSION_AUDIENCE = 'inventory-web';
+const OAUTH_STATE_AUDIENCE = 'oauth-state';
+const OAUTH_STATE_TTL_SECONDS = 10 * 60;
 
 export interface SessionClaims {
   userId: string;
   role: UserRole;
   name: string;
-}
-
-function signingKey(): Uint8Array {
-  // Validates length >= 32 as a side effect of calling sessionEnv().
-  return new TextEncoder().encode(sessionEnv().SESSION_SECRET);
 }
 
 /**
@@ -32,34 +26,23 @@ function signingKey(): Uint8Array {
 export async function signSessionToken(claims: SessionClaims): Promise<string> {
   const { SESSION_TTL_SECONDS } = sessionEnv();
 
-  return new SignJWT({ role: claims.role, name: claims.name })
-    .setProtectedHeader({ alg: ALGORITHM })
-    .setSubject(claims.userId)
-    .setIssuer(ISSUER)
-    .setAudience(AUDIENCE)
-    .setIssuedAt()
-    .setExpirationTime(`${SESSION_TTL_SECONDS}s`)
-    .sign(signingKey());
+  return signJwt(
+    SESSION_AUDIENCE,
+    { sub: claims.userId, role: claims.role, name: claims.name },
+    SESSION_TTL_SECONDS,
+  );
 }
 
 export async function verifySessionToken(token: string): Promise<SessionClaims | null> {
-  try {
-    const { payload } = await jwtVerify(token, signingKey(), {
-      issuer: ISSUER,
-      audience: AUDIENCE,
-      // Pinned so an attacker cannot present an alg=none token or downgrade to a
-      // weaker algorithm.
-      algorithms: [ALGORITHM],
-    });
+  const payload = await verifyJwt(token, SESSION_AUDIENCE);
+  if (payload === null) return null;
 
-    if (typeof payload.sub !== 'string' || payload.sub.length === 0) return null;
-    if (payload.role !== 'ADMIN' && payload.role !== 'STAFF') return null;
-    if (typeof payload.name !== 'string') return null;
+  const { sub, role, name } = payload;
+  if (typeof sub !== 'string' || sub.length === 0) return null;
+  if (role !== 'ADMIN' && role !== 'STAFF') return null;
+  if (typeof name !== 'string') return null;
 
-    return { userId: payload.sub, role: payload.role, name: payload.name };
-  } catch {
-    return null;
-  }
+  return { userId: sub, role, name };
 }
 
 /**
@@ -68,25 +51,10 @@ export async function verifySessionToken(token: string): Promise<SessionClaims |
  * cannot rely on a custom header.
  */
 export async function signOAuthState(nonce: string): Promise<string> {
-  return new SignJWT({ nonce })
-    .setProtectedHeader({ alg: ALGORITHM })
-    .setIssuer(ISSUER)
-    .setAudience('oauth-state')
-    .setIssuedAt()
-    .setExpirationTime('10m')
-    .sign(signingKey());
+  return signJwt(OAUTH_STATE_AUDIENCE, { nonce }, OAUTH_STATE_TTL_SECONDS);
 }
 
 export async function verifyOAuthState(state: string, expectedNonce: string): Promise<boolean> {
-  try {
-    const { payload } = await jwtVerify(state, signingKey(), {
-      issuer: ISSUER,
-      audience: 'oauth-state',
-      algorithms: [ALGORITHM],
-    });
-
-    return payload.nonce === expectedNonce;
-  } catch {
-    return false;
-  }
+  const payload = await verifyJwt(state, OAUTH_STATE_AUDIENCE);
+  return payload !== null && payload.nonce === expectedNonce;
 }
