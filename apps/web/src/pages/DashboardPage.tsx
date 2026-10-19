@@ -2,9 +2,6 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowUpFromLine,
-  Boxes,
-  CircleDollarSign,
-  Package,
   RotateCcw,
   TrendingUp,
   TriangleAlert,
@@ -295,27 +292,5 @@ function ActivityRow({ entry }: { entry: RecentActivityDto }) {
         </span>
       </p>
     </li>
-  );
-}
-
-function StatTile({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: typeof Package;
-  label: string;
-  value: string;
-}) {
-  return (
-    <Card size="sm">
-      <CardHeader>
-        <CardDescription className="flex items-center gap-1.5">
-          <Icon aria-hidden className="size-3.5" />
-          {label}
-        </CardDescription>
-        <CardTitle className="tabular text-lg">{value}</CardTitle>
-      </CardHeader>
-    </Card>
   );
 }

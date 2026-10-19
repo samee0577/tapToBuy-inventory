@@ -329,13 +329,3 @@ export function ProductsPage() {
     </div>
   );
 }
-
-/**
- * Generate a short variant code from the product name, size, and colour.
- * e.g. "Pant", "32", "Black" → "PNT-32-BLA"
- */
-function variantCode(productName: string, size: string, color: string): string {
-  const prefix = productName.replace(/[^a-zA-Z]/g, '').substring(0, 3).toUpperCase();
-  const colorCode = color.replace(/[^a-zA-Z]/g, '').substring(0, 3).toUpperCase();
-  return `${prefix}-${size}-${colorCode}`;
-}
