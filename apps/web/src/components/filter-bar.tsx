@@ -48,6 +48,12 @@ export interface FilterBarProps {
   stockStatus?: StockStatusType;
   sortBy: string;
   sortOptions: ReadonlyArray<{ value: string; label: string }>;
+  /**
+   * Grow the search field and the Filters button to 44px tall. Off by default so
+   * only screens that need thumb-sized targets (the phone stock list) opt in;
+   * the other list screens keep their compact bar.
+   */
+  touchTargets?: boolean;
 }
 
 const ALL = 'all';
@@ -89,7 +95,7 @@ export function FilterBar(props: FilterBarProps) {
   return (
     <div className="space-y-2">
       <div className="flex gap-2">
-        <InputGroup className="flex-1">
+        <InputGroup className={cn('flex-1', props.touchTargets && 'h-11 sm:h-8')}>
           <InputGroupAddon>
             <Search aria-hidden className="size-4" />
           </InputGroupAddon>
@@ -106,6 +112,7 @@ export function FilterBar(props: FilterBarProps) {
               <InputGroupButton
                 variant="ghost"
                 size="icon-xs"
+                className={cn(props.touchTargets && 'size-11 sm:size-6')}
                 aria-label="Clear search"
                 onClick={() => setSearch('')}
               >
@@ -153,6 +160,7 @@ function FilterDrawer({
   stockStatus,
   sortBy,
   sortOptions,
+  touchTargets,
   onApply,
 }: FilterBarProps & { onApply: (updates: Record<string, string | undefined>) => void }) {
   const [open, setOpen] = useState(false);
@@ -198,7 +206,11 @@ function FilterDrawer({
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger
         render={
-          <Button variant="outline" className="relative shrink-0" aria-label="Filters" />
+          <Button
+            variant="outline"
+            className={cn('relative shrink-0', touchTargets && 'h-11 sm:h-8')}
+            aria-label="Filters"
+          />
         }
       >
         <SlidersHorizontal aria-hidden data-icon="inline-start" />

@@ -169,7 +169,7 @@ export function DashboardPage() {
         <section aria-label="Financials" className="grid gap-3 sm:grid-cols-3">
           <Card size="sm">
             <CardHeader>
-              <CardDescription>Realized profit</CardDescription>
+              <CardDescription>Profit</CardDescription>
               <CardTitle className="tabular text-2xl">
                 {money(data.financials.realizedProfit)}
               </CardTitle>
@@ -242,26 +242,6 @@ export function DashboardPage() {
           </Button>
         </CardContent>
       </Card>
-
-      {/* Catalogue totals. Last: informative, not actionable. */}
-      <section aria-label="Catalogue" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatTile icon={Package} label="Products" value={formatQuantity(counts.activeProducts)} />
-        <StatTile
-          icon={Boxes}
-          label="Variants"
-          value={formatQuantity(counts.totalVariants)}
-        />
-        <StatTile
-          icon={CircleDollarSign}
-          label="On hand"
-          value={formatQuantity(counts.totalStockUnits)}
-        />
-        <StatTile
-          icon={TrendingUp}
-          label="Updated"
-          value={relativeTime(data.generatedAt)}
-        />
-      </section>
 
       {!isAdmin ? (
         <p className="text-xs text-muted-foreground">

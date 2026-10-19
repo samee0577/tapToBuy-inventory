@@ -21,20 +21,30 @@ import { cn } from '@/lib/utils';
 const PRESENTATION = {
   [StockStatus.IN_STOCK]: {
     label: 'In stock',
-    className: 'bg-stock-in-stock/10 text-stock-in-stock',
+    backgroundClassName: 'bg-stock-in-stock/10',
+    textClassName: 'text-stock-in-stock',
     Icon: CheckCircle2,
   },
   [StockStatus.LOW_STOCK]: {
     label: 'Low stock',
-    className: 'bg-stock-low-stock/15 text-stock-low-stock',
+    backgroundClassName: 'bg-stock-low-stock/15',
+    textClassName: 'text-stock-low-stock',
     Icon: AlertTriangle,
   },
   [StockStatus.OUT_OF_STOCK]: {
     label: 'Out of stock',
-    className: 'bg-stock-out-of-stock/10 text-stock-out-of-stock',
+    backgroundClassName: 'bg-stock-out-of-stock/10',
+    textClassName: 'text-stock-out-of-stock',
     Icon: XCircle,
   },
-} as const satisfies Record<StockStatusType, { label: string; className: string; Icon: typeof CheckCircle2 }>;
+} as const satisfies Record<
+  StockStatusType,
+  { label: string; backgroundClassName: string; textClassName: string; Icon: typeof CheckCircle2 }
+>;
+
+export function stockStatusTextClassName(status: StockStatusType) {
+  return PRESENTATION[status].textClassName;
+}
 
 export interface StockStatusBadgeProps {
   status: StockStatusType;
@@ -44,14 +54,22 @@ export interface StockStatusBadgeProps {
 }
 
 export function StockStatusBadge({ status, quantity, className }: StockStatusBadgeProps) {
-  const { label, className: tone, Icon } = PRESENTATION[status];
+  const tone = PRESENTATION[status];
 
   return (
-    <Badge variant="secondary" className={cn('gap-1 font-medium', tone, className)}>
-      <Icon aria-hidden className="size-3" />
-      <span>{label}</span>
+    <Badge
+      variant="secondary"
+      className={cn(
+        'gap-1 font-medium px-3',
+        tone.backgroundClassName,
+        tone.textClassName,
+        className,
+      )}
+    >
+      {/* <Icon aria-hidden className="size-3" /> */}
+      {/* <span>{label}</span> */}
       {quantity !== undefined ? (
-        <span className="tabular font-semibold">{quantity}</span>
+        <span className="tabular font-semibold">{quantity} units total</span>
       ) : null}
     </Badge>
   );

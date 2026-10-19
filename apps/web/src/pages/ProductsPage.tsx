@@ -1,11 +1,14 @@
+import { Fragment, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Package, Plus } from 'lucide-react';
 
 import {
+  StockStatus,
   deriveStockStatus,
   hasVariantFinancials,
   type ListProductsQuery,
   type ProductListItemDto,
+  type StockStatus as StockStatusType,
 } from '@inventory/shared';
 
 import { FilterBar } from '@/components/filter-bar';
@@ -16,12 +19,28 @@ import {
   PaginationBar,
   ResultCount,
 } from '@/components/screen-parts';
-import { ProfitValue, StockStatusBadge } from '@/components/stock-status-badge';
+import {
+  StockStatusBadge,
+  stockStatusTextClassName,
+} from '@/components/stock-status-badge';
+import {
+  MobileStockActions,
+  StockActionDialog,
+  type StockAction,
+} from '@/components/stock-action-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { useCategoryOptions, useListState, useProducts } from '@/hooks/use-api';
 import { useAuth } from '@/hooks/use-auth';
-import { money, quantity as formatQuantity } from '@/lib/format';
+import { quantity as formatQuantity } from '@/lib/format';
 
 /**
  * The catalogue.
@@ -53,6 +72,16 @@ export function ProductsPage() {
   const list = useListState();
   const categories = useCategoryOptions();
 
+  const [stockAction, setStockAction] = useState<{
+    action: StockAction;
+    variantId: string;
+    productName: string;
+    size: string;
+    color: string;
+    stock: number;
+    status: StockStatusType;
+    sellingPrice?: string;
+  } | null>(null);
   const query = {
     search: searchParams.get('search') ?? undefined,
     categoryId: searchParams.get('categoryId') ?? undefined,
@@ -76,11 +105,30 @@ export function ProductsPage() {
     list.setPage(page);
   };
 
+  const openAction = (
+    action: StockAction,
+    product: ProductListItemDto,
+    variantId: string,
+  ) => {
+    const variant = product.variants.find((v) => v.id === variantId);
+    if (!variant) return;
+    setStockAction({
+      action,
+      variantId,
+      productName: product.name,
+      size: variant.size,
+      color: variant.color,
+      stock: variant.stockQuantity,
+      status: variant.stockStatus,
+      sellingPrice: variant.sellingPrice,
+    });
+  };
+
   return (
     <div className="space-y-4">
       <PageHeader
         title="Products"
-        description="The catalogue, with each product's variants"
+        description="Manage pricing and stock at a glance."
         actions={
           isAdmin ? (
             <Button render={<Link to="/products/new" />}>
@@ -144,9 +192,12 @@ export function ProductsPage() {
                 <Card>
                   <CardContent className="space-y-3">
                     <div className="flex items-start gap-3">
-                      <ProductImage src={product.imageUrl} />
+                      <div className="flex size-14 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                        <Package aria-hidden className="size-4" />
+                      </div>
 
                       <div className="min-w-0 flex-1">
+                        {product.categoryName}
                         <Link
                           to={`/products/${product.id}`}
                           className="block truncate font-medium hover:underline"
@@ -154,13 +205,8 @@ export function ProductsPage() {
                           {product.name}
                         </Link>
                         <p className="tabular truncate text-xs text-muted-foreground">
-                          {product.productCode} · {product.categoryName}
+                          {product.productCode} · {product.variants.length} variant
                         </p>
-                        {product.description ? (
-                          <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                            {product.description}
-                          </p>
-                        ) : null}
                       </div>
 
                       <StockStatusBadge
@@ -174,44 +220,76 @@ export function ProductsPage() {
                         No active variants. Deactivate or add one to record stock.
                       </p>
                     ) : (
-                      <ul className="divide-y border-t">
-                        {product.variants.map((variant) => (
-                          <li
-                            key={variant.id}
-                            className="flex items-center gap-3 py-2 text-sm first:pt-3"
-                          >
-                            <span className="tabular w-28 shrink-0 text-xs text-muted-foreground">
-                              {variant.size} / {variant.color}
-                            </span>
-
-                            <span className="tabular shrink-0 text-muted-foreground">
-                              {money(variant.sellingPrice)}
-                            </span>
-
-                            {isAdmin && hasVariantFinancials(variant) ? (
-                              <span className="tabular hidden shrink-0 text-xs text-muted-foreground sm:inline">
-                                cost {money(variant.buyingPrice)}
-                              </span>
-                            ) : null}
-
-                            {isAdmin && hasVariantFinancials(variant) ? (
-                              <ProfitValue
-                                value={variant.unitProfit}
-                                className="hidden shrink-0 text-xs sm:inline"
-                              />
-                            ) : null}
-
-                            <span className="tabular ml-auto shrink-0 font-semibold">
-                              {formatQuantity(variant.stockQuantity)}
-                            </span>
-
-                            <StockStatusBadge
-                              status={variant.stockStatus}
-                              className="shrink-0"
-                            />
-                          </li>
-                        ))}
-                      </ul>
+                      <div className="overflow-hidden rounded-lg border-0">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>VARIANT</TableHead>
+                              <TableHead className="text-right">SELLING</TableHead>
+                              {isAdmin ? (
+                                <TableHead className="text-right">COST</TableHead>
+                              ) : null}
+                              <TableHead className="text-right">REMAINING</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {product.variants.map((variant) => (
+                              <Fragment key={variant.id}>
+                                <TableRow className="border-b-0">
+                                  <TableCell>
+                                    <div className="text-sm font-medium">
+                                      {variant.size} / {variant.color}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="tabular text-right">
+                                    ₹{variant.sellingPrice.replace(/\.00$/, '')}
+                                  </TableCell>
+                                  {isAdmin ? (
+                                    <TableCell className="tabular text-right text-muted-foreground">
+                                      {hasVariantFinancials(variant)
+                                        ? `₹${variant.buyingPrice.replace(/\.00$/, '')}`
+                                        : '—'}
+                                    </TableCell>
+                                  ) : null}
+                                  <TableCell className="py-5 text-right">
+                                    <div>
+                                      <span
+                                        className={`tabular text-xl font-bold ${stockStatusTextClassName(
+                                          variant.stockStatus,
+                                        )}`}
+                                      >
+                                        {formatQuantity(variant.stockQuantity)}
+                                      </span>
+                                    </div>
+                                    <div
+                                      className={`text-xs ${stockStatusTextClassName(
+                                        variant.stockStatus,
+                                      )}`}
+                                    >
+                                      {variant.stockStatus}
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell
+                                    colSpan={isAdmin ? 4 : 3}
+                                    className="pt-0 pb-3"
+                                  >
+                                    <MobileStockActions
+                                      disabled={
+                                        variant.stockStatus === StockStatus.OUT_OF_STOCK
+                                      }
+                                      onSelect={(action) =>
+                                        openAction(action, product, variant.id)
+                                      }
+                                    />
+                                  </TableCell>
+                                </TableRow>
+                              </Fragment>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
                     )}
                   </CardContent>
                 </Card>
@@ -228,6 +306,21 @@ export function ProductsPage() {
         </>
       )}
 
+      <StockActionDialog
+        open={stockAction !== null}
+        onOpenChange={(open) => {
+          if (!open) setStockAction(null);
+        }}
+        action={stockAction?.action ?? 'sale'}
+        variantId={stockAction?.variantId}
+        productName={stockAction?.productName ?? ''}
+        size={stockAction?.size ?? ''}
+        color={stockAction?.color ?? ''}
+        currentStock={stockAction?.stock ?? 0}
+        currentStatus={stockAction?.status ?? StockStatus.OUT_OF_STOCK}
+        sellingPrice={stockAction?.sellingPrice}
+      />
+
       <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
         <Package aria-hidden className="size-3" />
         Products are never deleted — deactivate them so their stock and history stay
@@ -237,24 +330,12 @@ export function ProductsPage() {
   );
 }
 
-function ProductImage({ src }: { src: string | null }) {
-  if (!src) {
-    return (
-      <div className="flex size-14 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-        <Package aria-hidden className="size-5" />
-      </div>
-    );
-  }
-
-  return (
-    <img
-      src={src}
-      alt=""
-      // A product photo is decoration here: the name is on the card as text, so a
-      // screen reader announcing "Oxford shirt, image" adds nothing.
-      loading="lazy"
-      decoding="async"
-      className="size-14 shrink-0 rounded-lg border object-cover"
-    />
-  );
+/**
+ * Generate a short variant code from the product name, size, and colour.
+ * e.g. "Pant", "32", "Black" → "PNT-32-BLA"
+ */
+function variantCode(productName: string, size: string, color: string): string {
+  const prefix = productName.replace(/[^a-zA-Z]/g, '').substring(0, 3).toUpperCase();
+  const colorCode = color.replace(/[^a-zA-Z]/g, '').substring(0, 3).toUpperCase();
+  return `${prefix}-${size}-${colorCode}`;
 }

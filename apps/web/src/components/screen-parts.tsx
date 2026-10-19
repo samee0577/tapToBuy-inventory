@@ -29,7 +29,7 @@ export function PageHeader({ title, description, actions, className }: PageHeade
   return (
     <header className={cn('flex flex-wrap items-start justify-between gap-3', className)}>
       <div className="min-w-0 space-y-1">
-        <h1 className="truncate text-xl font-semibold tracking-tight">{title}</h1>
+        <h1 className="truncate text-xl font-bold tracking-tight">{title}</h1>
         {description ? (
           <p className="text-sm text-muted-foreground">{description}</p>
         ) : null}

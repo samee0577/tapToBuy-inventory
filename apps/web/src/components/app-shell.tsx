@@ -49,7 +49,6 @@ interface NavItem {
 
 const PRIMARY_NAV: readonly NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/inventory', label: 'Stock', icon: Boxes },
   { to: '/products', label: 'Products', icon: Package },
   { to: '/history', label: 'History', icon: History },
 ];
@@ -138,7 +137,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80"
         aria-label="Primary"
       >
-        <ul className="pb-safe mx-auto grid max-w-5xl grid-cols-4">
+        <ul className="pb-safe mx-auto grid max-w-5xl grid-cols-3">
           {PRIMARY_NAV.map((item) => (
             <li key={item.to}>
               <NavLink

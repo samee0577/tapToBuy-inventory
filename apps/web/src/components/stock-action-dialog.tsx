@@ -1,10 +1,23 @@
 import { useEffect, useState } from 'react';
-import { ArrowDownToLine, ArrowUpFromLine, PackagePlus, RotateCcw, SlidersHorizontal } from 'lucide-react';
+import {
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  Ellipsis,
+  PackagePlus,
+  RotateCcw,
+  SlidersHorizontal,
+} from 'lucide-react';
 
 import type { StockStatus as StockStatusType } from '@inventory/shared';
 
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   Dialog,
   DialogContent,
@@ -433,6 +446,69 @@ export function StockActionMenu({
           Adjust
         </Button>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * The row-level actions for the phone list.
+ *
+ * Deliberately not `StockActionMenu`: a phone row can afford exactly one visible
+ * primary action and one overflow, where a desktop table can show four side by
+ * side. "Sale" is the action almost every row will use, so it stays put and the
+ * rarer three move into a menu. The trigger and every menu item are at least
+ * 44px tall because they are tapped with a thumb, not a pointer.
+ *
+ * Every item calls the same `onSelect` with the same action the desktop buttons
+ * send, so the flow each one opens is unchanged.
+ */
+export function MobileStockActions({
+  disabled,
+  onSelect,
+}: {
+  disabled?: boolean;
+  onSelect: (action: StockAction) => void;
+}) {
+  const { isAdmin } = useAuth();
+
+  return (
+    <div className="flex items-center gap-1">
+      <Button size="lg" className="h-11" onClick={() => onSelect('sale')} disabled={disabled}>
+        <ArrowUpFromLine aria-hidden data-icon="inline-start" />
+        Sale
+      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant="outline"
+              size="icon-lg"
+              className="size-11"
+              aria-label="More actions"
+              disabled={disabled}
+            />
+          }
+          disabled={disabled}
+        >
+          <Ellipsis aria-hidden />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-44">
+          <DropdownMenuItem className="min-h-11" onClick={() => onSelect('return')}>
+            <RotateCcw aria-hidden />
+            Return
+          </DropdownMenuItem>
+          <DropdownMenuItem className="min-h-11" onClick={() => onSelect('stockIn')}>
+            <ArrowDownToLine aria-hidden />
+            Stock in
+          </DropdownMenuItem>
+          {isAdmin ? (
+            <DropdownMenuItem className="min-h-11" onClick={() => onSelect('adjust')}>
+              <SlidersHorizontal aria-hidden />
+              Adjust
+            </DropdownMenuItem>
+          ) : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }
